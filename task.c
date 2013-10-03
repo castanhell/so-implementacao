@@ -31,8 +31,10 @@ void handleTimer(int signum){
 	else{
 		if(quantum == 0){
 			#ifdef DEBUG
-			printf("Liberando tarefa %d", currentTask->tid);
+			printf("Liberando tarefa %d\n", currentTask->tid);
 			#endif
+			//Termina
+			endTimer();
 			task_yield();
 		}
 		else{
@@ -52,9 +54,7 @@ void dispatcher_body(){
 		if(next){
 			//Inicia o quantum
 			quantum = 20;
-			//Finaliza a anterior
-			endTimer();
-			//Abre a próxima 
+			//Abre o timer para a próxima tarefa
 			//Obs: Aproximado!
 			startTimer();
 			task_switch(next);
@@ -63,6 +63,15 @@ void dispatcher_body(){
 	task_exit(0);
 }
 
+void changePriority(task_t *task, int factor){
+	if(task->priority < 20 && task->priority > -20){
+		task->priority += factor;
+	}
+	else{
+		//Corrige para valor valido
+		task->priority = 0;
+	}
+}
 
 task_t *scheduler(){
 	//se existe uma fila não
@@ -70,7 +79,7 @@ task_t *scheduler(){
 	if(rdyQueue){
 		task_t *nextElement = rdyQueue;
 		task_t *menorElement = NULL;
-		int maiorP = -20;
+		int maiorP = -21;
 		do{
 			if(nextElement->priority > maiorP){
 				maiorP = nextElement->priority;
@@ -78,18 +87,22 @@ task_t *scheduler(){
 			}
 			nextElement = nextElement->next;
 		} while(nextElement != rdyQueue);
-		//Diminui a atual
-		menorElement->priority -= 1;
 		//Envelhece as demais
 		nextElement = rdyQueue;
 		do{
 			if(nextElement->tid != menorElement->tid){
 				if(nextElement->priority < 20 && nextElement->priority > -20)
-					nextElement->priority += 1;
+					changePriority(nextElement,1);
+				else{  //Reseta para uma prioridade válida
+					nextElement->priority = 0;	
+				}
 			}
 			nextElement = nextElement->next;
 		} while(nextElement != rdyQueue);
+		//Troca o topo da lista (rdyQueue)
+		rdyQueue = menorElement;
 		//Retorna
+
 		return menorElement;
 	}
 	return 0;
@@ -228,7 +241,6 @@ int task_create (task_t * task, void (*start_routine)(void *),  void * arg){
 	   task->priority = 0;
 
 	   task->systemTask = 0;
-
 		task->runningTime = 0;
 
 		task->activations = 0;
@@ -254,7 +266,7 @@ int task_switch(task_t *t){
 void task_exit(int exit_code){
 	//Troca para dispatcher
 	//Imprime dados da tarefa
-	printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations", currentTask->tid, systime(), currentTask->runningTime, currentTask->activations);
+	printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", currentTask->tid, systime(), currentTask->runningTime, currentTask->activations);
 
 	if(currentTask == &dispatcher){
 		task_switch(&Main);
